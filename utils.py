@@ -30,17 +30,20 @@ def my_hav(c1, c2):
     return hs.haversine(c1, c2)
 
 
-def compute_MaxDC(model, coords):
+def compute_MaxDC(params,model, coords):
     """
     params: "m1" or "m2" or "m3" or "m4"
     coords: df_ac[['lat', 'lon']].to_numpy()
     """
-    params = {
-    'm1': [30, 0.5],
-    'm2': [60, 0.5],
-    'm3': [75, 0.5],
-    'm4': [10, 4]
-    }
+    if params is None:
+        
+        params = {
+        'm1': [30, 0.5],
+        'm2': [60, 0.5],
+        'm3': [75, 0.5],
+        'm4': [10, 4]
+        }
+    
     
     points, radius = params[model]
     max_dist = radius*2 
@@ -50,7 +53,7 @@ def compute_MaxDC(model, coords):
     return labels
 
 
-def cluster_model(df, city, ac_name):
+def cluster_model(df, city, ac_name, params):
     
     # while model!=0
     #ac_subset_master = []
@@ -70,7 +73,7 @@ def cluster_model(df, city, ac_name):
     if len(coords) == 1:
         labels = 0
     else:
-        labels = compute_MaxDC(model='m1', coords=coords)
+        labels = compute_MaxDC(params = params, model='m1', coords=coords)
     
     df_ac_1 = df_ac.copy()
     df_ac_1['cluster'] = labels
@@ -105,7 +108,7 @@ def cluster_model(df, city, ac_name):
     if len(coords) == 1:
         labels = 0
     else:
-        labels = compute_MaxDC(model='m2', coords=coords)
+        labels = compute_MaxDC(params = params, model='m2', coords=coords)
     
     df_ac_2 = m1_output.copy()
     df_ac_2['cluster'] = labels
@@ -136,12 +139,13 @@ def cluster_model(df, city, ac_name):
     m2_output[m2_output.duplicated()]
 
     print('-----------x---------Model 3 (Crossover Model)-----------x--------------')
-    
+    # Add a test case if only 1 unallocated point is left.
+    # Should add another case if all points are allocated and all bandwidth are are greater than 1 Gbps  
     coords = m2_output[['lat', 'lon']].to_numpy()
     if len(coords) == 1:
         labels = 0
     else:
-        labels = compute_MaxDC(model='m3', coords=coords)
+        labels = compute_MaxDC(params = params, model='m3', coords=coords)
     
     df_ac_3 = m2_output.copy()
     df_ac_3['cluster'] = labels
@@ -162,11 +166,12 @@ def cluster_model(df, city, ac_name):
     print('Noise points from Model 3 is fed into Model 4')
     
     # Add a test case if only 1 unallocated point is left.
+    # Should add another case if all points are allocated at m3
     coords = m3_output[['lat', 'lon']].to_numpy()
     if len(coords) == 1:
         labels = 0
     else:
-        labels = compute_MaxDC(model='m4', coords=coords)
+        labels = compute_MaxDC(params = params, model='m4', coords=coords)
     
     df_ac_4 = m3_output.copy()
     df_ac_4['cluster'] = labels
@@ -208,19 +213,60 @@ def cluster_model(df, city, ac_name):
 
  
 
-def compute_all(df, city_list):
+def compute_all(df, city_list, params):
     
     final_clustered_data = []
     final_fig = [] 
         
+          
+    if len(df['CITY'].unique()) > 1:
         
-    for city in city_list:
-
-        ac_names = np.unique(df[df['CITY']==city]['AC_NAME'])
         
+        for city in city_list:
+    
+            ac_names = np.unique(df[df['CITY']==city]['AC_NAME'])
+            flag = 0
+            for ac_name in ac_names:
+                
+                df = df[(df['CITY']==city)&(df['AC_NAME']==ac_name)]
+                
+            
+                #fig, clustered_data = compute_clustering(df)
+                
+                 
+                print('')
+                print('')
+            
+                print(f'Computing Max Diameter Clustering for city:{city}, AC:{ac_name} ')
+                
+                print('')
+                print('')
+                print('')
+                
+                clustered_data = cluster_model(df,city,ac_name,params)
+                print('')
+                print('')
+                print('')
+                
+                print(f'Completed Max Diameter Clustering for city:{city}, AC:{ac_name}')
+                final_clustered_data.append(clustered_data) 
+                info1 = st.info(f'We have clustered all data points in {ac_name} of {city}')
+                time.sleep(2)
+                info1.empty()
+                info2 = st.info(f'{len(ac_names) - flag} cities left in {city}')
+                time.sleep(2)
+                info2.empty() 
+                flag += 1  
+                
+        final_data = pd.concat(final_clustered_data)
+    
+    else:
+        
+        ac_names = np.unique(df['AC_NAME'])
+        flag = 0
         for ac_name in ac_names:
             
-            df = df[(df['CITY']==city)&(df['AC_NAME']==ac_name)]
+            df = df[(df['AC_NAME']==ac_name)]
             
         
             #fig, clustered_data = compute_clustering(df)
@@ -235,17 +281,21 @@ def compute_all(df, city_list):
             print('')
             print('')
             
-            clustered_data = cluster_model(df,city,ac_name)
+            clustered_data = cluster_model(df,city,ac_name,params)
             print('')
             print('')
             print('')
             
             print(f'Completed Max Diameter Clustering for city:{city}, AC:{ac_name}')
             final_clustered_data.append(clustered_data) 
-            
-            info = st.info(f'We have clustered all data points in {ac_name} of {city}') 
+            info1 = st.info(f'We have clustered all data points in {ac_name} of {city}')
+            time.sleep(2)
+            info1.empty()
+            info2 = st.info(f'{len(ac_names) - flag} cities left in {city}')
+            time.sleep(2)
+            info2.empty() 
+            flag += 1 
         final_data = pd.concat(final_clustered_data)
-        
          
         #fig = px.scatter_mapbox(final_data, lat="lat", lon="lon", color="cluster_name",
         #hover_name='name', hover_data=["Bandwidth"], color_continuous_scale = px.colors.cyclical.IceFire)
