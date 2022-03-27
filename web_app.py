@@ -37,7 +37,7 @@ st.markdown(
     """
     <style>
     [data-testid="stSidebar"][aria-expanded="true"] > div:first-child{
-        width: 600px;
+        width: 400px;
     }
     [data-testid="stSidebar"][aria-expanded="false"] > div:first-child{
         width: 400px;
@@ -51,6 +51,8 @@ st.markdown(
 
 def main():
     
+    
+    counter = 0
     # Reading the master csv file 
     # Master_t1_t2_t3: geopandas.sjoin(t1, t2, t3)
     
@@ -58,9 +60,61 @@ def main():
     
     st.title('AI Based Network Expansion Planning')
     
+    ## Ask if they want to upload data?
+    st.write('A snippet of our internal data:')
+    st.write(df_t123.head(5))
+    external_data = st.radio(
+     "Do you want to upload external data?",
+     ('No', 'Yes'))
+
+    #if "load_state" not in st.session_state:
+    #    st.session_state.load_state = False
+    
+    if external_data == 'Yes' and counter == 0:
+        
+        #st.session_state.load_state = True   
+        uploaded_file = st.file_uploader("Choose a CSV file", accept_multiple_files=False)
+        st.write('Number of Assembly Constitutencies in the internal data',len(np.unique(df_t123['AC_NAME'].astype(str))))
+        
+ 
+        
+        if uploaded_file is not None:# or st.session_state.load_state:
+            #st.session_state.load_state = True
+            #for uploaded_file in uploaded_files:
+            external_df = pd.read_csv(uploaded_file)
+            #st.write(dataframe)
+        
+            info = st.info('The file has been uploaded successfully')
+            time.sleep(3)
+            info.empty()
+            info = st.info('Checking for duplicates after combining the data')
+            time.sleep(3)
+            info.empty()
+             
+            info.info('we will concatenate it with the internal data')
+            time.sleep(3)
+            info.empty()
+            
+             
+            df_t123 = data_concat(df_t123, external_df, gdf)
+            st.write('Number of Assembly Constitutencies after uploading the external data',len(np.unique(df_t123['AC_NAME'].astype(str))))
+            info.info('Dropping duplicates after combining the data')
+            time.sleep(3)
+            info.empty()
+            counter +=1
+               
+        # Add a case where selected city is not in external_df
+        # so that final_df is not null
+        #else:
+            
+            
+     #   info = st.info("We will proceed with the internal data on our end")
+     #  time.sleep(2)
+     # info.empty() 
     # A list of options to choose from; 
     # The first selectbox of the web application
     
+        
     city_type = ['Tier 1', 'Tier 2', 'Rest of India']
     
     c_type = st.sidebar.selectbox('Select the type of city you want to cluster in', city_type) 
@@ -70,7 +124,7 @@ def main():
     st.sidebar.write('You selected:', c_type)
     
     # Boolean values are False unless stated otherwise
-    
+    file_len = len(df_t123)
     t1_all = False
     t2_all = False
     t3_city = None
@@ -79,7 +133,7 @@ def main():
         
         # Add 'All' as the first option
         
-        t1_list = ['All'] + list(np.unique(df_t1['CITY']))
+        t1_list = ['All'] + list(np.unique(df_t1['CITY'].astype(str)))
         
         # Option to choose multiple cities at a time
         
@@ -88,36 +142,41 @@ def main():
         # Returns city as a list; 
         
         if city == 'All':
+            
+            city_summ = ['T1','All']
             t1_all = True
             city = t1_list[1:]
             st.sidebar.write('You selected:', city)
         else:
-             
+            city_summ = ['T1', city] 
             st.sidebar.write('You selected', city)
             
     elif c_type == 'Tier 2':
         
-        t2_list = ['All'] + list(np.unique(df_t2['CITY']))
+         
+        t2_list = ['All'] + list(np.unique(df_t2['CITY'].astype(str)))
         
         city = st.sidebar.multiselect('Select the Tier 2 city of your choice', t2_list)
+        
         if city == 'All':
             
-             
+            city_summ = ['T2','All'] 
             city = t2_list[1:]
             st.sidebar.write('You selected:', city)
             
         else:
+            city_summ = ['T2',city]
             t2_all = False
             st.sidebar.write('You selected', city)
     
     else:
         
         #t3_list = ['All'] + 
-        t3_list = list(np.unique(df_t123['AC_NAME']))
+        t3_list = list(np.unique(df_t123['AC_NAME'].astype(str)))
         
         city = st.sidebar.multiselect('Select among the list of Tier 3, Tier 4, Tier 5, and Tier 6 cities', t3_list)
-        t3_city = city
-        
+        t3_city = city 
+        city_summ = ['ROI', city]
         #if city == 'All':
             
         #    city = t3_list[1:]
@@ -126,13 +185,7 @@ def main():
             
         st.sidebar.write('You selected', city)  
     
-    ## Ask if they want to upload data?
-    st.write('A snippet of our internal data:')
-    st.write(df_t123.head(5))
-    external_data = st.radio(
-     "Do you want to upload external data?",
-     ('No', 'Yes'))
-
+    
      
         
      
@@ -154,21 +207,25 @@ def main():
         r3 = st.sidebar.slider('Select the radius (in Km) for the lower bandwidth (Crossover) model (model 3)',0.0, 10.0, 0.5, step=0.5)
         r4 = st.sidebar.slider('Select the radius (in Km) for the wireless model (model 4)',0.0, 10.0, 4.0, step=0.5)
         
-        new_params = pd.DataFrame({'model':['Number of Points', 'Radius (in Km)'],
-            'model 1': [str(p1), str(r1)],
-            'model 2': [str(p2), str(r2)],
-            'model 3': [str(p3), str(r3)],
-            'model 4': [str(p4), str(r4)],
+        b1 = st.sidebar.slider('Select the Bandwidth (in Mbps) for the higher bandwidth model (model 1)',0,10000,2000, step=50)
+        b2 = st.sidebar.slider('Select the Bandwidth (in Mbps) for the medium bandwidth model (model 2)',0,10000,1000, step=50)
+        b3 = None 
+        b4 = st.sidebar.slider('Select the Bandwidth (in Mbps) for the wireless model (model 4)',0,100,20, step=5)
+        new_params = pd.DataFrame({'model':['Number of Points', 'Radius (in Km)', 'Bandwidth (in Mbps)'],
+            'model 1': [str(p1), str(r1), str(b1)],
+            'model 2': [str(p2), str(r2), str(b2)],
+            'model 3': [str(p3), str(r3), str(b3)],
+            'model 4': [str(p4), str(r4), str(b4)],
             })
             
         st.sidebar.write('New Parameters')
         st.sidebar.write(new_params)
         
         params = {
-        'm1': [p1, r1],
-        'm2': [p2, r2],
-        'm3': [p3, r3],
-        'm4': [p4, r4]
+        'm1': [p1, r1, b1],
+        'm2': [p2, r2, b2],
+        'm3': [p3, r3, b3],
+        'm4': [p4, r4, b4]
         }
     else:
         params = None
@@ -185,44 +242,6 @@ def main():
     
     # Add a run button 
     
-    if external_data == 'Yes':
-        
-        uploaded_file = st.file_uploader("Choose a CSV file", accept_multiple_files=False)
-        
-        if uploaded_file is not None:
-            #for uploaded_file in uploaded_files:
-            external_df = pd.read_csv(uploaded_file)
-            #st.write(dataframe)
-        
-            info = st.info('The file has been uploaded successfully')
-            time.sleep(3)
-            info.empty()
-            info = st.info('Checking for duplicates after combining the data')
-            time.sleep(3)
-            info.empty()
-            if list(external_df.columns) != list(df_t123.columns):
-                
-                st.error('The columns of the uploaded data and our internal data does not match')
-                st.error('The columns of the uploaded data and our internal data does not match')
-                st.write('Try to structure the external data in the following order', df_t123.columns)
-            
-            else:
-                
-                info.info('we will concatenate it with the internal data')
-                time.sleep(3)
-                info.empty()
-                df = pd.concat([df_t123, external_df])
-                df.drop_duplicates() 
-                info.info('Dropping duplicates after combining the data')
-                time.sleep(3)
-                info.empty()
-                
-               
-    #else:
-        
-     #   info = st.info("We will proceed with the internal data on our end")
-     #  time.sleep(2)
-     # info.empty()
         
     if st.sidebar.button('Generate Clusters'):
          
@@ -234,7 +253,7 @@ def main():
                                 hover_name='name', hover_data=["Bandwidth"], color_continuous_scale = px.colors.cyclical.IceFire)
             fig.update_layout(mapbox_style="open-street-map")
             fig.update_layout(margin={"r":1,"t":1,"l":1,"b":1})
-            #fig.show()
+            fig.show()
             st.success('The clusters have been generated. Please go ahead and download the clusters, along with the confusion matrices')
             
         elif t2_all == True:
@@ -263,12 +282,20 @@ def main():
                 info1 = st.info(f'We have clustered all data points in {city}')
                 time.sleep(2)
                 info1.empty()
+                
             final_data = pd.concat(final_clustered_data)
+            
             fig = px.scatter_mapbox(final_data, lat="lat", lon="lon", color="cluster_name",
                                 hover_name='name', hover_data=["Bandwidth"], color_continuous_scale = px.colors.cyclical.IceFire)
             fig.update_layout(mapbox_style="open-street-map")
             fig.update_layout(margin={"r":1,"t":1,"l":1,"b":1})
-            fig.show()     
+            fig.show()      
+             
+            ## Distance from wireline, wireless, and handhole pop
+            
+            
+            
+            
             
             st.sidebar.success('The clusters have been generated. Please go ahead and download the clusters, along with the confusion matrices')
             
@@ -283,7 +310,7 @@ def main():
             
             for city in city:
                 flag = 0
-                ac_names = np.unique(df_t123[df_t123['CITY']==city]['AC_NAME'])
+                ac_names = np.unique(df_t123[df_t123['CITY']==city]['AC_NAME'].astype(str))
                 for ac_name in ac_names: 
                      
                     
@@ -316,80 +343,109 @@ def main():
             fig.update_layout(mapbox_style="open-street-map")
             fig.update_layout(margin={"r":1,"t":1,"l":1,"b":1})
             fig.show()
-        
-            st.sidebar.success('The clusters have been generated. Please go ahead and download the clusters, along with the confusion matrices')
             
-        #st.sidebar.success('The clusters have been generated. Please go ahead and download the clusters, along with the confusion matrices')
+            #st.write(final_data.drop(columns=['CITY_TYPE','cluster']).head())
+            st.sidebar.success('The clusters have been generated. Please go ahead and download the clusters, along with the confusion matrices')
+        
+        
         
          
-    # Checkbox 
-        zipObj = ZipFile("clusters.zip", "w")
-        city_list = list(np.unique(final_data['AC_NAME']))
+        df_cluster = final_data[['lat', 'lon', 'cluster_name']]
         
-        if len(city_list) == 1:
-            fig.to_html(f'{city}.html')
-            zipObj.write(f'{city}.html')
+        df_cluster_mean = df_cluster.groupby(['cluster_name']).mean()
+        df_cluster_mean = df_cluster_mean.reset_index('cluster_name')
+        df_wireline = df_wireless = df_handhole = df_cluster_mean
+        
+        # Distance from POP
+        # optimize
+        df_wireline  = compute_nearest_pop('wireline', df_wireline, wireline)
+        df_wireliess = compute_nearest_pop('wireless', df_wireless, wireless)
+        df_handhole  = compute_nearest_pop('handhole', df_handhole, handhole)
+             
+        # Final matrix with category
+        merged_final = create_final_matrix_with_category(final_data, df_wireline, df_wireless, df_handhole)
+        
+         
+        # Have to add the case for T1/T2 or ROI (Pending)
+        summary = generate_summary(city_summ, file_len, final_data, external_data)
+        
+        st.write(merged_final)
+        st.write('Summary:')
+        st.write(summary)
+        #st.write(final_data.shape)
+        #st.write(df.shape)
+        #st.sidebar.success('The clusters have been generated. Please go ahead and download the clusters, along with the confusion matrices')
+        
+       # @st.cache 
+ 
+        #st.write(merged_final) 
+        zipObj = ZipFile("output.zip", "w")
+        for city in list(final_data['AC_NAME'].unique()):
             
-        else:
-             
-             
-            for city in city_list:
-                city_cluster_data = final_data[final_data['AC_NAME']==city]
-                fig = px.scatter_mapbox(final_data, lat="lat", lon="lon", color="cluster_name",
+            dummy = final_data[final_data['AC_NAME']==city]
+            fig = px.scatter_mapbox(dummy, lat="lat", lon="lon", color="cluster_name",
                                     hover_name='name', hover_data=["Bandwidth"], color_continuous_scale = px.colors.cyclical.IceFire)
-                fig.update_layout(mapbox_style="open-street-map")
-                fig.update_layout(margin={"r":1,"t":1,"l":1,"b":1})
-                plot = fig.to_html(f'{city}.html')
-                zipObj.write(f'Plots/{plot}.html')
+            fig.update_layout(mapbox_style="open-street-map")
+            fig.update_layout(margin={"r":1,"t":1,"l":1,"b":1})
             
+            html_plot = fig.to_html()
+            
+            zipObj.writestr(f'{city}.html', html_plot)
+            
+        #if not 'type' in final_data.columns:
+            
+             
+        #    final_data = convert_df(final_data)
+            
+        #else:
+            
+            #merged_final = merged_final.groupby(['type'=='user_input']) 
+            #final_data = final_data.groupby(['type'=='user_input']) 
+            #merged_final = merged_final[merged_final['type']=='user_input']
+            #final_data = final_data[final_data['type']=='user_input']
+        
+        final_data = convert_df(final_data)
+        merged_final = convert_df(merged_final)    
+        # Add multiple files to the zip
+        zipObj.writestr(f'merged_final.csv', merged_final)
+        zipObj.writestr(f'final_data.csv', final_data)
+        
+         
+            
+        # close the Zip File
         zipObj.close()
-        ZipfileDotZip = "clusters.zip" 
+        
+        ZipfileDotZip = "output.zip"
         
         with open(ZipfileDotZip, "rb") as f:
             bytes = f.read()
             b64 = base64.b64encode(bytes).decode()
-            href = f"<a href=\"data:file/zip;base64,{b64}\" download='{ZipfileDotZip}.zip'>\
-                City-wise clusters\
+            href = f"<a href=\"data:file/zip;base64,{b64}\" download='{ZipfileDotZip}'>\
+                Click to download the final clustered data\
             </a>"
-         
         
-            st.download_button(
-                 label="Download",
-                 data=f,
-                 file_name='clusters.zip',
-                 mime='zip',
-             )
-            
         st.sidebar.markdown(href, unsafe_allow_html=True)
-        st.sidebar.write('Click here to download the clusters and confusion matrices')
-        
-        
-
- 
-                 
-    
-    
-    else:
-        st.sidebar.write('Click here to generate the clusters and confusion matrices')
-        
+        #should store it in a specific path
+        #st.sidebar.write(f'The file can be found at {os.getcwd()}\output.zip')
          
+    # Checkbox 
     
      
 
     #return final_data # Should add cm here
 
-st.markdown('Created by **_Tata_ _Communications_**') 
+st.markdown('Created in **_Tata_ _Communications_**') 
  # cm as a table, summary of the final data all in the middle
  # 2 tables, 3 cs
     
 if __name__ == "__main__":
      
      
-    default_params = pd.DataFrame({'model':['Number of Points', 'Radius (in Km)'],
-    'model 1': ['30', '0.5'],
-    'model 2': ['60', '0.5'],
-    'model 3': ['75', '0.5'],
-    'model 4': ['10', '4'],
+    default_params = pd.DataFrame({'model':['Number of Points', 'Radius (in Km)', 'Bandwidth (in Mbps)'],
+    'High Bandwidth (m1)': ['30', '0.5', '2048'],
+    'Medium Bandwidth (m2)': ['60', '0.5', '1024'],
+    'Crossover Model (m3)': ['75', '0.5',''],
+    'Wireless Model (m4)': ['10', '4', '20'],
     }) 
     df_t11 = pd.read_csv('D:/NW_Planning/NWP_v2/data/Tier1/master_csv_1_tier1_mod1.csv')
     df_t12 = pd.read_csv('D:/NW_Planning/NWP_v2/data/Tier1/master_csv_1_tier1_mod2.csv')
@@ -399,6 +455,11 @@ if __name__ == "__main__":
     df_t1 = pd.concat([df_t11,df_t12])
     df_t2 = pd.concat([df_t21,df_t22])
      
+    gdf = gpd.read_file(r'D:\NW_Planning\NWP_v2\Shape_India_v2\India_AC.shp')
+    wireline = pd.read_csv('D:/NW_Planning/NWP_v2/data/wireline_v2/Wireline_tier1_tier2_POPs_with_CITY.csv')
+    wireless = pd.read_csv('D:/NW_Planning/NWP_v2/data/wireline_v2/Wireless_live_BTS_with_CITY.csv')
+    handhole = pd.read_csv('D:/NW_Planning/NWP_v2/data/wireline_v2/Handhole_TCL_with_CITY.csv')
+    
     main()
     
      
