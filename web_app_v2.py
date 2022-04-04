@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Mar 29 17:10:32 2022
-
-@author: clouduser1
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -203,8 +196,7 @@ def main():
      
     # Provide optional parameters
     st.sidebar.write('Default Parameters')
-    st.sidebar.write(default_params.T)
-    st.sidebar.write('Scroll to the right to see the default parameters')
+    st.sidebar.write(default_params)
     modify_bool = st.sidebar.checkbox('I want to customize the parameters for clustering')
 
     if modify_bool:
@@ -226,7 +218,7 @@ def main():
         b4 = st.sidebar.slider('Select the Bandwidth (in Mbps) for the wireless model (model 4)',0,100,20, step=5)
         
         
-        new_params = pd.DataFrame({'Model':['Num(Points)', 'Rad(Km)', 'BW (Mbps)'],
+        new_params = pd.DataFrame({'model':['Number of Points', 'Radius (in Km)', 'Bandwidth (in Mbps)'],
             'model 1': [str(p1), str(r1), str(b1)],
             'model 2': [str(p2), str(r2), str(b2)],
             'model 3': [str(p3), str(r3), str(b3)],
@@ -237,8 +229,8 @@ def main():
             
             raise ValueError('The parameters cannot be set to zero. Please rerun the app with adequate parameters.')
         st.sidebar.write('New Parameters')
-        st.sidebar.write(new_params.T)
-        st.sidebar.write('Scroll to the right to see the Customized parameters')
+        st.sidebar.write(new_params)
+        
         params = {
         'm1': [p1, r1, b1],
         'm2': [p2, r2, b2],
@@ -421,11 +413,6 @@ def main():
                 
                 zipObj.writestr(f'{city}.html', html_plot)
             
-        else:
-            
-            html_plot = fig.to_html()
-            zipObj.writestr(f'plot.html',html_plot)
-            
         #if not 'type' in final_data.columns:
             
              
@@ -456,15 +443,15 @@ def main():
         
         with open(ZipfileDotZip, "rb") as f:
             
-            #st.sidebar.download_button('Download', f, file_name=f'{ZipfileDotZip}')
+            st.sidebar.download_button('Download', f, file_name=f'{ZipfileDotZip}')
             
-            bytes = f.read()
-            b64 = base64.b64encode(bytes).decode()
-            href = f"<a href=\"data:file/zip;base64,{b64}\" download='{ZipfileDotZip}'>\
-                Download\
-            </a>"
+            #bytes = f.read()
+            #b64 = base64.b64encode(bytes).decode()
+            #href = f"<a href=\"data:file/zip;base64,{b64}\" download='{ZipfileDotZip}'>\
+            #    Click to download the final clustered data\
+            #</a>"
         
-        st.sidebar.markdown(href, unsafe_allow_html=True)
+        #st.sidebar.markdown(href, unsafe_allow_html=True)
         #should store it in a specific path
         #st.sidebar.write(f'The file can be found at {os.getcwd()}\output.zip')
          
@@ -497,12 +484,12 @@ st.markdown(menu,unsafe_allow_html=True)
 if __name__ == "__main__":
      
      
-    default_params = pd.DataFrame({'Model':['Num(Points)', 'Rad(Km)', 'BW (Mbps)'],
+    default_params = pd.DataFrame({'model':['Number of Points', 'Radius (in Km)', 'Bandwidth (in Mbps)'],
     'High Bandwidth (m1)': ['30', '0.5', '2048'],
     'Medium Bandwidth (m2)': ['60', '0.5', '1024'],
     'Crossover Model (m3)': ['75', '0.5',''],
     'Wireless Model (m4)': ['10', '4', '20'],
-    }) 
+    }).T()
     df_t11 = pd.read_csv('D:/NW_Planning/NWP_v2/data/Tier1/master_csv_1_tier1_mod1.csv')
     df_t12 = pd.read_csv('D:/NW_Planning/NWP_v2/data/Tier1/master_csv_1_tier1_mod2.csv')
     df_t21 = pd.read_csv('D:/NW_Planning/NWP_v2/data/Tier2/master_csv_1_tier2_mod1.csv')

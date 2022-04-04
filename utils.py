@@ -438,6 +438,42 @@ def compute_all(df, city_list, params):
         #fig.show()
         return final_data
 
+def compute_nearest_pop_but_faster(df_type, df, parent_df):
+    
+    for index, row in df.iterrows():
+    #     print(index, row['lat'], row['lon'])
+        centermost = (row['lat'],row['lon']).to_numpy()
+        min_dist = 10000 # equivalent to inf
+        nearest_pop = ()
+        for j_index, j_row in parent_df.iterrows():
+        
+            pop = (j_row['Lattitude'].to_numpy(), j_row['Longitude'].to_numpy()) 
+            cur_dist = my_hav(centermost, pop).km  
+            if(cur_dist<=min_dist):
+                min_dist = cur_dist
+                nearest_pop = pop
+                #owner = j_row['owner']
+                if df_type == 'handhole':
+                    site_id = j_row['System Id']
+                else:
+                    site_id = j_row['Site ID']
+
+        print("centre ", index,f": Nearest {df_type} POP :",nearest_pop," Distance: ", min_dist)
+        df.loc[index,f"{df_type}_site_id"] = site_id
+        df.loc[index,f"{df_type}_pop_lat"] = nearest_pop[0]
+        df.loc[index,f"{df_type}_pop_long"] = nearest_pop[1]
+        df.loc[index,f"distance_from_{df_type}_pop"] = min_dist
+        #df.loc[index,"wireline_owner"] = owner
+
+    # Removing clusters within 0.5km of the POP for m1, m2, m3 output
+    # Removing clusters within 3 km of the POP for m4 output
+    df = df[((~df['cluster_name'].str.contains('m4')) & (df[f'distance_from_{df_type}_pop'] > 0.5)) | ((df['cluster_name'].str.contains('m4'))&(df[f'distance_from_{df_type}_pop'] > 3))]    
+    
+    # m1_m2_m3 =  df[(~df['cluster_name'].str.contains('m4'))& (df[f'distance_from_{df_type}_pop'] > 0.5)]
+    # m4 = df[(df['cluster_name'].str.contains('m4'))&(df[f'distance_from_{df_type}_pop'] > 3)]
+    #df = pd.concat([m1_m2_m3, m4])
+    
+    return df 
 
 def compute_nearest_pop(df_type, df, parent_df):
     
@@ -454,7 +490,7 @@ def compute_nearest_pop(df_type, df, parent_df):
         nearest_pop = ()
         for j_index, j_row in parent_df.iterrows():
             pop = (j_row['Lattitude'], j_row['Longitude'])
-            cur_dist = great_circle(centermost, pop).km  
+            cur_dist = my_hav(centermost, pop)#.km  
             if(cur_dist<=min_dist):
                 min_dist = cur_dist
                 nearest_pop = pop
@@ -561,7 +597,19 @@ def create_final_matrix_with_category(df_output, df_wireline, df_wireless, df_ha
     cluster_matrix = merged_final
     cluster_matrix['Bandwidth_bins'] = pd.cut(x = cluster_matrix['Bandwidth'], bins = [0, 1000, 2000, 5000,1000000])
     cluster_matrix['Bandwidth_bins'] = cluster_matrix['Bandwidth_bins'].astype('str') 
+    
+    criterion_pop = ['distance_from_wireless_pop_x', 'distance_from_handhole_pop_y', 'distance_from_wireline_pop_y']
+    common_columns = []
+    for pop in criterion_pop:
+        if pop in cluster_matrix.columns:
+            common_columns.append(pop)
             
+    cluster_matrix['min_dist_from_pop'] = cluster_matrix[common_columns].min(axis=1)
+    cluster_matrix['Handhole_distance_bins'] = pd.cut(x = cluster_matrix['min_dist_from_pop'], bins = [0, 1, 5, 20, 100000])   
+        
+    #cluster_matrix['Handhole_distance_bins'] = pd.cut(x = cluster_matrix['distance_from_handhole_pop_y'], bins = [0, 1, 5, 20, 100000])        
+    cluster_matrix['Handhole_distance_bins'] = cluster_matrix['Handhole_distance_bins'].astype('str')
+    
     included_category = []
     for column in cluster_matrix.columns:
         if column in categories:
@@ -574,9 +622,18 @@ def create_final_matrix_with_category(df_output, df_wireline, df_wireless, df_ha
     req_category = ['cluster_name', 'ATM', 'Automobile Dealer', 'Clinic',
        'Corporate Office', 'Hospital', 'Offnet', 'Onnet', 'Other Amenities',
        'Other Banks', 'Railway station', 'SEZ', 'Supermarket', 'University',  
-       'distance_from_wireline_pop_y', 'distance_from_wireless_pop_x', 'lat', 'lon', 'wireline_site_id',
-       'distance_from_handhole_pop_y' 'Bandwidth', 'Bandwidth_bins',
-       'count_of_categories_in_a_cluster']
+       'wireline_site_id_x', 'wireline_pop_lat_x',
+       'wireline_pop_long_x', 'distance_from_wireline_pop_x', 'indicator1',
+       'lat_y', 'lon_y', 'wireline_site_id_y', 'wireline_pop_lat_y',
+       'wireline_pop_long_y', 'distance_from_wireline_pop_y',
+       'wireless_site_id_x', 'wireless_pop_lat_x', 'wireless_pop_long_x',
+       'distance_from_wireless_pop_x', 'indicator1', 'lat', 'lon',
+       'wireline_site_id', 'wireline_pop_lat', 'wireline_pop_long',
+       'distance_from_wireline_pop', 'wireless_site_id_y',
+       'wireless_pop_lat_y', 'wireless_pop_long_y',
+       'distance_from_wireless_pop_y', 'handhole_site_id', 'handhole_pop_lat',
+       'handhole_pop_long', 'distance_from_handhole_pop_y', 'Bandwidth', 'Bandwidth_bins',
+       'count_of_categories_in_a_cluster', 'Handhole_distance_bins']
     
     categories_present = []
     for column in cluster_matrix.columns:
@@ -639,6 +696,7 @@ def data_concat(internal_df, external_df, ac_shape_file):
         # Dropping duplicates
         # Throwing off an error for the timebeing
         #final_df.drop_duplicates()
+        final_df.drop_duplicates(subset='identifier', keep="first")
         final_df.dropna() 
         return final_df
     
@@ -647,7 +705,7 @@ def convert_df(df):
    return df.to_csv(index=False).encode('utf-8')
 
 
-def generate_summary(city_summ, file_len, final_df, external_df):
+def generate_summary(city_summ, df, final_df, external_df, bwp_pc_matrix):
     
      
     
@@ -658,20 +716,92 @@ def generate_summary(city_summ, file_len, final_df, external_df):
     
     total_clusters = final_df['cluster_name'].nunique()
     
-    pre_num = file_len
+    #pre_num = file_len
     post_num = len(final_df)
     
     city_type, cities = city_summ
+    
+    pre_num = 0
+    # Should create a test case for ALL and Multiple cities
+    for city_ in cities:
+        
+        if city_type == 'Tier 1':
+            
+            pre_num += len(df[df['CITY']==f'{city_}'])
+        
+        elif city_type == 'Tier 2':
+            
+            pre_num += len(df[df['CITY']==f'{city_}'])
+        
+        else:
+            pre_num += len(df[df['AC_NAME']==f'{city_}'])
+    
+    
     if (external_df == 'yes'):
         if cities == 'All':
             
-            summary = f'The user selected {cities}, {city_type} cities. After combining the internal master data and user input, the dataset has {pre_num} data points (feasibility requests). After clustering, out of {pre_num} data points, {post_num} feasibility requests were clustered into {total_clusters} clusters. '
+            summary = f'The user selected {cities} of {city_type} cities. After combining the internal master data and user input, the dataset has {pre_num} data points (feasibility requests). After clustering, out of {pre_num} data points, {post_num} feasibility requests were clustered into {total_clusters} clusters. '
         else:
             
-            summary = f'The user selected {cities}, {city_type} cities. After combining the internal master data and user input, the dataset has {pre_num} data points (feasibility requests). After clustering, out of {pre_num} data points, {post_num} feasibility requests were clustered into {total_clusters} clusters. '
+            summary = f'The user selected {cities} of {city_type} cities. After combining the internal master data and user input, the dataset has {pre_num} data points (feasibility requests). After clustering, out of {pre_num} data points, {post_num} feasibility requests were clustered into {total_clusters} clusters. '
     
     else: 
         
-        summary = f'The user selected {cities}, {city_type} cities. After combining the internal master data and user input, the dataset has {pre_num} data points (feasibility requests). After clustering, out of {pre_num} data points, {post_num} feasibility requests were clustered into {total_clusters} clusters. '
+        summary = f'The user selected {str(cities)} of {city_type} cities. The dataset had {pre_num} data points (feasibility requests). After clustering, out of {pre_num} data points, {post_num} feasibility requests were clustered into {total_clusters} clusters. '
         
     return summary
+
+def get_city(df):
+    
+    df['cluster_name'] = df['cluster_name'].astype('str')
+    df['CITY'] = df['cluster_name'].str.replace('_m', '')
+    df['CITY'] = df['CITY'].str.replace('[0-9]', '')
+    df['CITY'] = df['CITY'].str.replace('_', '')
+    
+    return df
+
+def BW_potential_per_cluster_matrix(merged_final):
+    
+    
+    cluster_matrix = merged_final
+    #cluster_matrix['Bandwidth_bins'] = pd.cut(x = cluster_matrix['Bandwidth'], bins = [0, 1000, 2000, 5000,1000000])
+ 
+    #cluster_matrix['Bandwidth_bins'] = cluster_matrix['Bandwidth_bins'].astype('str')
+    #cluster_matrix['Handhole_distance_bins'] = pd.cut(x = cluster_matrix['distance_from_handhole_pop_y'], bins = [0, 1, 5, 20, 500])
+    
+    #cluster_matrix['Handhole_distance_bins'] = cluster_matrix['Handhole_distance_bins'].astype('str')
+    
+    cluster_matrix = get_city(cluster_matrix)
+    gb1 = pd.DataFrame(cluster_matrix.groupby(['CITY', 'Handhole_distance_bins', 'Bandwidth_bins'])['cluster_name'].nunique())
+    gb1.rename(columns = {'cluster_name':'cluster_count'}, inplace = True)
+    gb1.reset_index(inplace = True) 
+    
+    
+    #matrix1 = pd.pivot_table(data = gb1, index = ['CITY', 'Handhole_distance_bins'], columns = 'Bandwidth_bins', values = 'cluster_count')
+    matrix1 = pd.pivot_table(data = gb1, index = ['Handhole_distance_bins'], columns = 'Bandwidth_bins', values = 'cluster_count')
+  
+    
+    matrix1.reset_index(inplace = True)
+    #matrix1 = gb1
+    #matrix1.groupby(['CITY','Handhole_distance_bins', 'Bandwidth_bins'])['cluster_name'].nunique()
+    matrix1.rename(columns = {'Handhole_distance_bins':'Handhole distance/Bandwidth bins',
+                                    '(0, 1000]':'Up to 1 Gbps', '(1000, 2000]':'1 to 2 Gbps',
+                                    '(2000, 5000]':'2 to 5 Gbps', '(5000, 1000000]':'Over 5 Gbps'}, inplace = True)
+     
+     
+    matrix1['Handhole distance/Bandwidth bins'] = matrix1['Handhole distance/Bandwidth bins'].astype('str')
+    matrix1['Handhole distance/Bandwidth bins'] = np.where(matrix1['Handhole distance/Bandwidth bins'] == '(0, 1]', 'Up to 1 km', matrix1['Handhole distance/Bandwidth bins'])
+    matrix1['Handhole distance/Bandwidth bins'] = np.where(matrix1['Handhole distance/Bandwidth bins'] == '(1, 5]', '1 to 5 km', matrix1['Handhole distance/Bandwidth bins'])
+    matrix1['Handhole distance/Bandwidth bins'] = np.where(matrix1['Handhole distance/Bandwidth bins'] == '(5, 20]', '5 to 20 km', matrix1['Handhole distance/Bandwidth bins'])
+    matrix1['Handhole distance/Bandwidth bins'] = np.where(matrix1['Handhole distance/Bandwidth bins'] == '(20, 100000]', 'Over 20 km', matrix1['Handhole distance/Bandwidth bins'])
+    #matrix1 = matrix1.replace(r'',0, regex=True)
+    
+    int_columns = ['Up to 1 Gbps', '1 to 2 Gbps', '2 to 5 Gbps', 'Over 5 Gbps']
+    
+    for column in matrix1.columns:
+        if column in int_columns: 
+            cluster_matrix[column] = matrix1[column].astype('int',errors='ignore')
+    #matrix1.fillna(0)
+    #matrix1.groupby(['CITY', 'Handhole distance/Bandwidth bins', 'Bandwidth_bins'])['cluster_name'].nunique()
+    return matrix1 
+
