@@ -73,11 +73,11 @@ The app is structured as follows:
                   └── plots.kml (In dev)
 
 ### Dev
-
-1. Create an environment ```conda create -n streamlit-template python=3.8.5 pip```.
-
-2. Install requirements: ```pip install -r app/requirements.txt```
-
-#### Run the App
-* ```cd app```
-* ```streamlit run multipage.py```
+* Install Docker: ```pip install docker```
+ 
+#### Run the App (As a Docker image in the container)
+* ```git clone <https:repo>```
+* ```docker build -t multipage:latest . ```
+* ```docker run multipage:latest```
+* A snippet of the docker output
+- ![image](https://user-images.githubusercontent.com/96295015/163801067-843d70c1-954e-4bff-9f35-8cd66936b2c2.png)
