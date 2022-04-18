@@ -21,8 +21,7 @@ The directory structure of the repository is as follows:
     ├── requirements.txt          <- The requirements file for reproducing the analysis environment.
     │ 
     ├── src                       <- Source code for the app.
-    │   ├── __init__.py           <- Makes src a Python module
-    │   │
+    │   ├── __init__.py           <- Makes src a Python module 
     │   ├── page1.py              <- Script to create Landing Page.  
     │   ├── page2.py              <- Script for Duplicate Checker (In dev) 
     │   ├── page3.py              <- Script for the clustering app. 
